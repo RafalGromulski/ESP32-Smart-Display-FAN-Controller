@@ -1,2 +1,216 @@
-# ESP32-Smart-Display-FAN-Controller
-Project made to learn electronics and ESP32 programming. A self-contained device with OLED display and all parts in an enclosure. The screen shows temperature, humidity and pressure from Home Assistant via MQTT. DS18B20 measures internal temp; a fan is driven by ESP32 with N-MOSFET and hysteresis to prevent overheating.
+# ESP32 Smart Display + FAN Controller
+
+**OLED + ESP32 + MQTT (HA) + DS18B20 + FAN (MOSFET, hysteresis) + Solar power**
+
+> A complete IoT project on **ESP32**: **SSD1306 128×64** OLED display, **Home Assistant** integration via **MQTT**, local **DS18B20** temperature measurement, automatic fan control with hysteresis, and **solar power** with **TP4056 Li‑Ion charging**. Designed as a **portfolio project** to showcase skills in electronics, microcontroller programming, and IoT integration.
+
+---
+
+## 📌 Project Goal
+
+The project was built to strengthen my knowledge in electronics and ESP32 programming. I created a self‑contained device in an enclosure with an OLED display and all necessary peripherals. The display shows temperature, humidity, and pressure data from **Home Assistant** (via MQTT). The internal temperature is monitored with **DS18B20**, while a cooling fan is controlled by the ESP32 through an **N‑MOSFET** with hysteresis to prevent overheating.
+
+---
+
+## ✨ Key Features
+
+* **OLED UI (SSD1306 128×64, I²C)** – 3 rows, 2 columns (see below).
+* **MQTT → OLED**: temperature, humidity, pressure (`esp32/weather/*`).
+* **DS18B20 → MQTT**: publishes measured temperature (retained).
+* **FAN ON/OFF with hysteresis** driven by MOSFET (low‑side, GPIO23).
+* **Fan modes**: `AUTO` / `ON` / `OFF` (via MQTT control).
+* **Configurable thresholds** (`on_c` / `off_c`) via MQTT (retained state).
+* **NTP** – timestamp of last MQTT update (HH\:MM).
+* **LWT (Last Will & Testament)** – topic `esp32/availability` reports `online` / `offline`.
+* **Solar powered**: 6 V panel → step‑up → step‑down → **TP4056** → dual 18650 cells (design rationale below).
+
+---
+
+## 🖥️ OLED UI
+
+```
+Row 1:  <MQTT Temp °C>               <MQTT Humidity %>
+Row 2:  <MQTT Pressure hPa>          FAN <ON|OFF>
+Row 3:  <DS18B20 Temp (int) °C>      <Last MQTT update HH:MM>
+```
+
+---
+
+## 🔌 MQTT Topics
+
+**Inbound (HA → ESP32)**
+
+* `esp32/weather/temperature`  → e.g. `23.4`
+* `esp32/weather/humidity`     → e.g. `55`
+* `esp32/weather/pressure`     → e.g. `1015`
+
+**Outbound (ESP32 → HA, retained)**
+
+* `esp32/fan/temperature`  → DS18B20 °C (e.g. `23.75`)
+* `esp32/fan/state`        → `ON` | `OFF`
+
+**Control (HA → ESP32) + retained config**
+
+* `esp32/fan/cmd`              → `AUTO` | `ON` | `OFF`
+* `esp32/fan/mode`             → retained (`AUTO`/`ON`/`OFF`)
+* `esp32/fan/config/on_c/set`  → float °C (command)
+* `esp32/fan/config/off_c/set` → float °C (command)
+* `esp32/fan/config/on_c`      → retained float °C (state)
+* `esp32/fan/config/off_c`     → retained float °C (state)
+
+**Availability (LWT)**
+
+* `esp32/availability` → `online` | `offline`
+
+---
+
+## 🧠 Fan Control Logic (Hysteresis)
+
+* Defaults: **ON ≥ 30.0 °C**, **OFF ≤ 25.0 °C** (compile‑time enforced).
+* `AUTO` mode uses hysteresis based on **DS18B20** readings. `ON` / `OFF` force the state regardless of temperature.
+* DS18B20 validation: rejects **–127 °C** (disconnected) and **85 °C** (power‑on default).
+
+---
+
+## 🔧 Hardware (BOM – Highlights)
+
+* **ESP32 DevKit (ESP‑WROOM, CP2102, USB‑C)**
+* **OLED 0.96" SSD1306, 128×64, I²C**
+* **DS18B20** + resistor **4.7 kΩ** (pull‑up to 3.3 V)
+* **N‑MOSFET** (low‑side) + cooling fan
+* **Schottky diode 1N5819** (blocks back‑current from panel at night)
+* **Step‑UP XL6009** (boosts unstable panel output to \~9 V)
+* **Step‑DOWN LM2596S** (regulated 5 V for TP4056 & logic)
+* **TP4056 USB‑C** (Li‑Ion charger with protection)
+* **2× 18650 Samsung INR18650‑35E** in **parallel battery holder**
+* **Electrolytic capacitor 220 µF** + extra passive elements
+
+> **Why both step‑up and step‑down?** A 6 V/1 W solar panel produces unstable voltage. Boosting to \~9 V then regulating down to a stable 5 V ensures TP4056 receives consistent input, preventing charging instability and overheating.
+
+---
+
+## 🪛 ESP32 Pinout
+
+* **OLED I²C**: SDA **GPIO21**, SCL **GPIO22**, address **0x3C**
+* **DS18B20**: DATA **GPIO4** + 4.7 kΩ to 3.3 V
+* **FAN (MOSFET gate)**: **GPIO23** (HIGH = ON)
+
+---
+
+## 🗂️ Repo Structure
+
+```
+📦 esp32-smart-display-fan
+├─ src/                  # ESP32 firmware (Arduino)
+├─ hardware/             # schematics, PCB, photos
+├─ docs/                 # documentation, diagrams
+└─ README.md             # this file
+```
+
+---
+
+## ⚙️ Configuration (Wi‑Fi / MQTT)
+
+In the code, edit constants under **USER CONFIGURATION**:
+
+```cpp
+constexpr const char* WIFI_SSID     = "<your-ssid>";
+constexpr const char* WIFI_PASSWORD = "<your-pass>";
+constexpr const char* MQTT_SERVER   = "<broker-ip>";
+constexpr uint16_t    MQTT_PORT     = <port>;
+constexpr const char* MQTT_USER     = "<user>";
+constexpr const char* MQTT_PASSWORD = "<pass>";
+```
+
+Default timezone: **GMT+2** (`TIMEZONE_OFFSET = 7200`).
+
+---
+
+## ▶️ Building & Uploading
+
+* **Arduino IDE** (ESP32 Arduino Core):
+
+  1. Install libraries: `Adafruit_GFX`, `Adafruit_SSD1306`, `PubSubClient`, `OneWire`, `DallasTemperature`, `NTPClient`.
+  2. Select board **ESP32 Dev Module** and correct COM port.
+  3. Configure Wi‑Fi/MQTT constants and upload.
+
+* **PlatformIO** (optional): add libraries in `lib_deps` and build for `esp32dev`.
+
+---
+
+## 🧩 Home Assistant Integration (Example)
+
+```yaml
+mqtt:
+  sensor:
+    - name: "Weather Temperature"
+      state_topic: "esp32/weather/temperature"
+      unit_of_measurement: "°C"
+    - name: "Weather Humidity"
+      state_topic: "esp32/weather/humidity"
+      unit_of_measurement: "%"
+    - name: "Weather Pressure"
+      state_topic: "esp32/weather/pressure"
+      unit_of_measurement: "hPa"
+    - name: "ESP32 Fan Temperature"
+      state_topic: "esp32/fan/temperature"
+      unit_of_measurement: "°C"
+  binary_sensor:
+    - name: "ESP32 Fan State"
+      state_topic: "esp32/fan/state"
+      payload_on: "ON"
+      payload_off: "OFF"
+  switch:
+    - name: "ESP32 Fan Mode ON"
+      command_topic: "esp32/fan/cmd"
+      payload_on: "ON"
+      payload_off: "AUTO"
+```
+
+Control thresholds: publish floats to `esp32/fan/config/on_c/set` and `.../off_c/set`.
+
+---
+
+## 🧪 Reliability & Safety
+
+* **LWT**: broker sets `offline` on `esp32/availability` if ESP32 disconnects.
+* **DS18B20 validation**: invalid values (–127 / 85 °C) discarded; only last valid is published.
+* **OLED redraw watchdog**: ensures refresh at least every 5 minutes.
+
+---
+
+## 📷 Gallery
+
+Include photos: assembled enclosure, wiring, display in operation (`docs/images/`).
+
+---
+
+## 📜 License
+
+Recommended: **MIT License**.
+
+---
+
+## 👤 Author
+
+Rafał Gromulski
+Programming • Electronics • IoT • Embedded systems. Contact: rgromulski@gmail.com / [LinkedIn](https://www.linkedin.com/in/rafałgromulski) / [GitHub](https://github.com/RafalGromulski).
+
+---
+
+### Appendix A — Detailed BOM (Summary)
+
+* **ESP32 DevKit (ESP‑WROOM, CP2102, USB‑C)**
+* **OLED 0.96" SSD1306 (I²C, 128×64, blue)**
+* **Solar panel 1 W / 6 V** (136×110×3 mm)
+* **Schottky diode 1N5819** (1 A / 40 V)
+* **Step‑UP XL6009** (3–30 V in → \~9 V out)
+* **Step‑DOWN LM2596S** (1.5–35 V in → 5 V out)
+* **TP4056 USB‑C** (Li‑Ion charging, protection)
+* **2× Samsung INR18650‑35E** (parallel, in holder)
+* **DS18B20** (THT TO‑92)
+* **Electrolytic capacitor 220 µF** (input stabilization)
+* **N‑MOSFET** + 5 V cooling fan
+* **4.7 kΩ resistor** (pull‑up), wiring, breadboard/PCB
+
+> Detailed specs and reasoning included in parts documentation and comments in code.
