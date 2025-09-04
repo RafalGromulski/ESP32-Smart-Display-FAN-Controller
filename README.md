@@ -194,7 +194,7 @@ Recommended: **MIT License**.
 ## 👤 Author
 
 Rafał Gromulski
-Programming • Electronics • IoT • Embedded systems. Contact: rgromulski@gmail.com / [LinkedIn](https://www.linkedin.com/in/rafałgromulski) / [GitHub](https://github.com/RafalGromulski).
+Programming • Electronics • IoT • Embedded systems. Contact: [Gmail](rgromulski@gmail.com) / [LinkedIn](https://www.linkedin.com/in/rafałgromulski) / [GitHub](https://github.com/RafalGromulski).
 
 ---
 
