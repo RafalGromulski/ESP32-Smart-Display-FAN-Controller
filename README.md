@@ -8,21 +8,21 @@
 
 ## 📌 Project Goal
 
-The project was built to strengthen my knowledge in electronics and ESP32 programming. I created a self‑contained device in an enclosure with an OLED display and all necessary peripherals. The display shows temperature, humidity, and pressure data from **Home Assistant** (via MQTT). The internal temperature is monitored with **DS18B20**, while a cooling fan is controlled by the ESP32 through an **N‑MOSFET** with hysteresis to prevent overheating.
+The project was built to strengthen my knowledge in electronics and ESP32 programming. I created a self‑contained device in an enclosure with an OLED display and all necessary peripherals. The display shows temperature, humidity, and atmospheric pressure data from **Home Assistant** (via MQTT). The internal temperature is monitored with **DS18B20**, while a cooling fan is controlled by the ESP32 through an **N‑MOSFET** with hysteresis to prevent overheating.
 
 ---
 
 ## ✨ Key Features
 
 * **OLED UI (SSD1306 128×64, I²C)** – 3 rows, 2 columns (see below).
-* **MQTT → OLED**: temperature, humidity, pressure (`esp32/weather/*`).
+* **MQTT → OLED**: temperature, humidity, atmospheric pressure (`esp32/weather/*`).
 * **DS18B20 → MQTT**: publishes measured temperature (retained).
 * **FAN ON/OFF with hysteresis** driven by MOSFET (low‑side, GPIO23).
 * **Fan modes**: `AUTO` / `ON` / `OFF` (via MQTT control).
 * **Configurable thresholds** (`on_c` / `off_c`) via MQTT (retained state).
 * **NTP** – timestamp of last MQTT update (HH\:MM).
 * **LWT (Last Will & Testament)** – topic `esp32/availability` reports `online` / `offline`.
-* **Solar powered**: 6 V panel → step‑up → step‑down → **TP4056** → dual 18650 cells (design rationale below).
+* **Solar powered**: 6 V panel → Schottky diode → step‑up → step‑down → **TP4056** → dual 18650 cells (design rationale below).
 
 ---
 
@@ -72,20 +72,39 @@ Row 3:  <DS18B20 Temp (int) °C>      <Last MQTT update HH:MM>
 
 ---
 
-## 🔧 Hardware (BOM – Highlights)
+## 🔧 Hardware
 
-* **ESP32 DevKit (ESP‑WROOM, CP2102, USB‑C)**
-* **OLED 0.96" SSD1306, 128×64, I²C**
-* **DS18B20** + resistor **4.7 kΩ** (pull‑up to 3.3 V)
-* **N‑MOSFET** (low‑side) + cooling fan
-* **Schottky diode 1N5819** (blocks back‑current from panel at night)
-* **Step‑UP XL6009** (boosts unstable panel output to \~9 V)
-* **Step‑DOWN LM2596S** (regulated 5 V for TP4056 & logic)
-* **TP4056 USB‑C** (Li‑Ion charger with protection)
-* **2× 18650 Samsung INR18650‑35E** in **parallel battery holder**
-* **Electrolytic capacitor 220 µF** + extra passive elements
+### Power Supply Stage
+- **Solar panel 1 W / 6 V**
+- **Schottky diode (1N5819)** — prevents back-current from panel at night
+- **Step-UP converter XL6009** — boosts unstable panel output (~7 V)
+- **Step-DOWN converter LM2596S** — regulated **5 V** for TP4056 & logic
+- **TP4056 USB-C** — Li-Ion charger with protection
+- **2× Lithium-ion rechargeable cell (parallel)** in holder
 
-> **Why both step‑up and step‑down?** A 6 V/1 W solar panel produces unstable voltage. Boosting to \~9 V then regulating down to a stable 5 V ensures TP4056 receives consistent input, preventing charging instability and overheating.
+### Regulation & Distribution
+- **Step-UP XL6009** — **5 V** rail (fan supply)
+- **Step-DOWN LM2596S** — **5 V → 3.3 V** (ESP32, DS18B20, OLED)
+
+### Control & Processing
+- **ESP32 DevKit (ESP-WROOM, CP2102, USB-C)**
+- **OLED 0.96" SSD1306, 128×64, I²C**
+- **DS18B20** + **4.7 kΩ** pull-up to 3.3 V
+
+### Cooling Stage (MOSFET low-side)
+- **N-MOSFET IRLZ44N** (gate at **GPIO23**, HIGH = ON)
+  - **Gate series resistor** **100–220 Ω** (limits switching spikes)
+  - **Gate pull-down** **47–100 kΩ** → Source (safe OFF; faster gate discharge)
+  - **Flyback Schottky diode** **1N5819**: **cathode (+)** to fan supply, **anode (−)** to MOSFET **drain**
+  - **Electrolytic capacitor** **220 µF** close to the fan (suppresses inrush/step loads)
+- **5 V cooling fan**
+
+### Passives
+- **Electrolytic capacitors 220 µF** (power stabilization)
+- Additional resistors, wires, connectors as above
+
+> **Why step-up *and* step-down between solar panel and TP4056?** A 6 V/1 W solar panel produces a variable voltage. Boosting to a higher, stable headroom and then regulating down to **5 V** keeps the TP4056 input stable, avoiding intermittent charging or excess heating.
+
 
 ---
 
@@ -101,7 +120,7 @@ Row 3:  <DS18B20 Temp (int) °C>      <Last MQTT update HH:MM>
 
 ```
 📦 esp32-smart-display-fan
-├─ src/                  # ESP32 firmware (Arduino)
+├─ src                   # ESP32 firmware (Arduino)
 ├─ hardware/             # schematics, PCB, photos
 ├─ docs/                 # documentation, diagrams
 └─ README.md             # this file
@@ -138,7 +157,7 @@ Default timezone: **GMT+2** (`TIMEZONE_OFFSET = 7200`).
 
 ---
 
-## 🧩 Home Assistant Integration (Example)
+## 🧩 Home Assistant Integration in configuration.yaml (Example)
 
 ```yaml
 mqtt:
@@ -187,7 +206,7 @@ Include photos: assembled enclosure, wiring, display in operation (`docs/images/
 
 ## 📜 License
 
-**MIT License**.
+**MIT License**
 
 ---
 
@@ -204,13 +223,14 @@ Programming • Electronics • IoT • Embedded systems. Contact: rgromulski@gm
 * **OLED 0.96" SSD1306 (I²C, 128×64, blue)**
 * **Solar panel 1 W / 6 V** (136×110×3 mm)
 * **Schottky diode 1N5819** (1 A / 40 V)
-* **Step‑UP XL6009** (3–30 V in → \~9 V out)
-* **Step‑DOWN LM2596S** (1.5–35 V in → 5 V out)
+* **Step‑UP XL6009** (3–30 V in, 5-35 V out)
+* **Step‑DOWN LM2596S** (3.2-35 V in → 1.5-35 V out)
 * **TP4056 USB‑C** (Li‑Ion charging, protection)
 * **2× Samsung INR18650‑35E** (parallel, in holder)
 * **DS18B20** (THT TO‑92)
-* **Electrolytic capacitor 220 µF** (input stabilization)
+* **Electrolytic capacitors 220 µF** (stabilization)
 * **N‑MOSFET** + 5 V cooling fan
+* **Cooling fan 30mm 5V 3010**
 * **4.7 kΩ resistor** (pull‑up), wiring, breadboard/PCB
 
 > Detailed specs and reasoning included in parts documentation and comments in code.
