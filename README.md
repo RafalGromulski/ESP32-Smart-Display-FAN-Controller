@@ -120,7 +120,7 @@ Row 3:  <DS18B20 Temp (int) °C>      <Last MQTT update HH:MM>
 
 ```
 📦 esp32-smart-display-fan
-├─ src                   # ESP32 firmware (Arduino)
+├─ src/                  # ESP32 firmware (Arduino)
 ├─ hardware/             # schematics, PCB, photos
 ├─ docs/                 # documentation, diagrams
 └─ README.md             # this file
